@@ -1,0 +1,19 @@
+﻿# Dependencies
+node_modules/
+
+# Builds / outputs
+.next/
+out/
+dist/
+coverage/
+.turbo/
+.vercel/
+
+# Env & secrets
+.env
+.env.*.local
+
+# Logs & misc
+*.log
+.DS_Store
+.vscode/
