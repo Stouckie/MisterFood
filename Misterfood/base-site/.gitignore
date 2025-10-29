@@ -12,6 +12,10 @@ node_modules/
 .next/
 out/
 
+# Databases
+data/*.db
+prisma/data/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

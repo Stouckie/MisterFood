@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { notifyMerchant } from '@/lib/notify';
 
@@ -19,15 +20,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
-  try {
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session: any = event.data.object;
-        const orderId = session.metadata?.orderId as string | undefined;
-        const piId = session.payment_intent as string | undefined;
+  let notifyOrderId: string | null = null;
 
-        if (orderId) {
-          const updated = await prisma.order.update({
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.webhookEvent.create({ data: { id: event.id, type: event.type } });
+
+      switch (event.type) {
+        case 'checkout.session.completed': {
+          const session: any = event.data.object;
+          const orderId = session.metadata?.orderId as string | undefined;
+          const piId = session.payment_intent as string | undefined;
+
+          if (!orderId) break;
+
+          const updated = await tx.order.update({
             where: { id: orderId },
             data: {
               status: 'PAID',
@@ -36,54 +43,59 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          // notify once
           if (!updated.notifiedAt) {
-            try {
-              await notifyMerchant(updated.id);
-            } catch (e) {
-              console.error('Notify error:', e);
-            } finally {
-              await prisma.order.update({
-                where: { id: updated.id },
-                data: { notifiedAt: new Date() },
-              });
-            }
+            notifyOrderId = updated.id;
           }
+          break;
         }
-        break;
-      }
 
-      case 'payment_intent.payment_failed': {
-        const pi: any = event.data.object;
-        const orderId = pi.metadata?.orderId as string | undefined;
-        if (orderId) {
-          await prisma.order.update({
-            where: { id: orderId },
-            data: { status: 'FAILED' },
-          });
+        case 'payment_intent.payment_failed': {
+          const pi: any = event.data.object;
+          const orderId = pi.metadata?.orderId as string | undefined;
+          if (orderId) {
+            await tx.order.update({
+              where: { id: orderId },
+              data: { status: 'FAILED' },
+            });
+          }
+          break;
         }
-        break;
-      }
 
-      case 'charge.refunded': {
-        const charge: any = event.data.object;
-        const piId = charge.payment_intent as string | undefined;
-        if (piId) {
-          await prisma.order.updateMany({
-            where: { stripePaymentIntentId: piId },
-            data: { status: 'CANCELED' },
-          });
+        case 'charge.refunded': {
+          const charge: any = event.data.object;
+          const piId = charge.payment_intent as string | undefined;
+          if (piId) {
+            await tx.order.updateMany({
+              where: { stripePaymentIntentId: piId },
+              data: { status: 'CANCELED' },
+            });
+          }
+          break;
         }
-        break;
-      }
 
-      default:
-        // handle other events if needed
-        break;
+        default:
+          break;
+      }
+    });
+
+    if (notifyOrderId) {
+      try {
+        await notifyMerchant(notifyOrderId);
+      } catch (e) {
+        console.error('Notify error:', e);
+      } finally {
+        await prisma.order.update({
+          where: { id: notifyOrderId },
+          data: { notifiedAt: new Date() },
+        });
+      }
     }
 
     return NextResponse.json({ received: true });
   } catch (e: any) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      return NextResponse.json({ received: true });
+    }
     console.error(e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
