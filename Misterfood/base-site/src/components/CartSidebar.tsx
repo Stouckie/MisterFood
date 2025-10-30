@@ -22,11 +22,36 @@ export default function CartSidebar({
     tipPct, setTipPct, customTipMinor, setCustomTipMinor,
     note, setNote,
     canCheckout, reason, checkout,
+    currency: cartCurrency,
   } = useCart();
 
   const [customTipStr, setCustomTipStr] = useState(
     customTipMinor != null ? (customTipMinor / 100).toFixed(2).replace('.', ',') : ''
   );
+  const moneyCurrency = cartCurrency || currency;
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleCheckout() {
+    if (!canCheckout || isSubmitting) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const { clientSecret, orderId, amount, currency: checkoutCurrency } = await checkout();
+      const params = new URLSearchParams({
+        client_secret: clientSecret,
+        order_id: orderId,
+        amount: String(amount),
+        currency: (checkoutCurrency || cartCurrency || currency).toLowerCase(),
+      });
+      window.location.href = `/checkout/pay?${params.toString()}`;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Impossible de démarrer le paiement';
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <aside style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
@@ -122,26 +147,32 @@ export default function CartSidebar({
 
         {/* Totaux */}
         <div style={{ marginTop: 12, borderTop: '1px solid #eee', paddingTop: 12 }}>
-          <Row label="Sous-total"><Money cents={subtotal} currency={currency} /></Row>
-          {serviceFee > 0 && <Row label="Frais"><Money cents={serviceFee} currency={currency} /></Row>}
-          {deliveryFee > 0 && <Row label="Livraison"><Money cents={deliveryFee} currency={currency} /></Row>}
-          {tipMinor > 0 && <Row label="Pourboire"><Money cents={tipMinor} currency={currency} /></Row>}
+          <Row label="Sous-total"><Money cents={subtotal} currency={moneyCurrency} /></Row>
+          {serviceFee > 0 && <Row label="Frais"><Money cents={serviceFee} currency={moneyCurrency} /></Row>}
+          {deliveryFee > 0 && <Row label="Livraison"><Money cents={deliveryFee} currency={moneyCurrency} /></Row>}
+          {tipMinor > 0 && <Row label="Pourboire"><Money cents={tipMinor} currency={moneyCurrency} /></Row>}
           <Row label={<b>Total</b>} bold>
-            <b><Money cents={total} currency={currency} /></b>
+            <b><Money cents={total} currency={moneyCurrency} /></b>
           </Row>
         </div>
 
         <button
-          onClick={checkout}
-          disabled={!canCheckout}
+          onClick={handleCheckout}
+          disabled={!canCheckout || isSubmitting}
           style={{
             marginTop: 12, width: '100%', padding: '10px 14px', borderRadius: 10,
-            background: canCheckout ? 'black' : '#bbb', color: 'white', border: 'none', cursor: canCheckout ? 'pointer' : 'not-allowed'
+            background: canCheckout && !isSubmitting ? 'black' : '#bbb', color: 'white', border: 'none', cursor: canCheckout && !isSubmitting ? 'pointer' : 'not-allowed'
           }}
           title={reason || ''}
+          aria-busy={isSubmitting}
         >
-          {reason ? reason : 'Commander'}
+          {isSubmitting ? 'Paiement en cours...' : reason ? reason : 'Commander'}
         </button>
+        {error && (
+          <p role="alert" style={{ color: '#b00020', marginTop: 8 }}>
+            {error}
+          </p>
+        )}
       </div>
     </aside>
   );

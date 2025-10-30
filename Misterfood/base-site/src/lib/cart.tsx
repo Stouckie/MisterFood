@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { postJSON } from '@/lib/fetch';
+import { trackAddToCart, trackBeginCheckout } from '@/lib/analytics';
 
 export type CartMode = 'pickup' | 'delivery';
 
@@ -12,6 +13,17 @@ export type CartLine = {
   variantName: string;
   unitAmount: number;     // cents
   quantity: number;
+};
+
+export type CheckoutResult = {
+  clientSecret: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+};
+
+export type CheckoutOptions = {
+  customerEmail?: string;
 };
 
 export type CartConfig = {
@@ -56,10 +68,12 @@ type CartCtx = {
   tipMinor: number;
   total: number;
 
+  currency: string;
+
   canCheckout: boolean;
   reason?: string;
 
-  checkout: () => Promise<void>;
+  checkout: (opts?: CheckoutOptions) => Promise<CheckoutResult>;
 };
 
 const CartContext = createContext<CartCtx | null>(null);
@@ -114,15 +128,24 @@ export function CartProvider({
   // line ops
   const add: CartCtx['add'] = (l, qty = 1) => {
     const key = `${l.itemId}-${l.variantId}`;
+    const quantity = Math.max(1, qty);
     setState(curr => {
       const idx = curr.lines.findIndex(x => x.key === key);
       if (idx >= 0) {
         const copy = [...curr.lines];
-        copy[idx] = { ...copy[idx], quantity: copy[idx].quantity + qty };
+        copy[idx] = { ...copy[idx], quantity: copy[idx].quantity + quantity };
         return { ...curr, lines: copy };
       }
-      return { ...curr, lines: [...curr.lines, { key, quantity: qty, ...l }] };
+      return { ...curr, lines: [...curr.lines, { key, quantity, ...l }] };
     });
+    trackAddToCart({
+      itemId: l.itemId,
+      name: l.name,
+      variantId: l.variantId,
+      variantName: l.variantName,
+      unitAmount: l.unitAmount,
+      quantity,
+    }, currency);
   };
 
   const setQty: CartCtx['setQty'] = (key, qty) => {
@@ -160,10 +183,23 @@ export function CartProvider({
   const canCheckout = state.lines.length > 0 && subtotal >= min;
   const reason = !state.lines.length ? 'Panier vide' : subtotal < min ? `Minimum ${fmt(min, currency)}` : undefined;
 
-  async function checkout() {
-    if (!canCheckout) return;
+  const checkout: CartCtx['checkout'] = async (opts) => {
+    if (!canCheckout) {
+      throw new Error(reason || 'Panier invalide');
+    }
 
-    // payload attendu par /api/checkout/create
+    const extras: Record<string, unknown> = {
+      mode: state.mode,
+      serviceFeeMinor: serviceFee || 0,
+      deliveryFeeMinor: deliveryFee || 0,
+      tipMinor: tipMinor || 0,
+    };
+
+    const note = state.note?.trim();
+    if (note) {
+      extras.note = note;
+    }
+
     const payload = {
       merchantId: config.merchantId,
       currency,
@@ -172,19 +208,30 @@ export function CartProvider({
         unitAmount: l.unitAmount,
         quantity: l.quantity,
       })),
-      // extras non bloquants pour la route actuelle (seront stockés en metadata éventuellement)
-      extras: {
-        mode: state.mode,
-        note: state.note || '',
-        serviceFeeMinor: serviceFee || 0,
-        deliveryFeeMinor: deliveryFee || 0,
-        tipMinor: tipMinor || 0,
-      },
-    } as any;
+      extras,
+      customerEmail: opts?.customerEmail,
+    };
 
-    const { url } = await postJSON<{ url: string }>('/api/checkout/create', payload);
-    location.href = url;
-  }
+    trackBeginCheckout(
+      state.lines.map(l => ({
+        itemId: l.itemId,
+        name: l.name,
+        variantId: l.variantId,
+        variantName: l.variantName,
+        unitAmount: l.unitAmount,
+        quantity: l.quantity,
+      })),
+      {
+        valueMinor: total,
+        currency,
+        shippingMinor: deliveryFee,
+        taxMinor: serviceFee,
+        tipMinor: tipMinor || undefined,
+      }
+    );
+
+    return postJSON<CheckoutResult>('/api/checkout/create', payload);
+  };
 
   const ctx: CartCtx = {
     lines: state.lines,
@@ -206,6 +253,7 @@ export function CartProvider({
     tipMinor,
     total,
     canCheckout,
+    currency,
     reason,
     checkout,
   };

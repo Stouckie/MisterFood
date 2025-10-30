@@ -30,8 +30,9 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const refresh_url = ${process.env.APP_URL}/admin;
-    const return_url  = ${process.env.APP_URL}/admin;
+    const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || '';
+    const refresh_url = `${baseUrl}/admin`;
+    const return_url  = `${baseUrl}/admin`;
 
     const link = await stripe.accountLinks.create({
       account: accountId!,
