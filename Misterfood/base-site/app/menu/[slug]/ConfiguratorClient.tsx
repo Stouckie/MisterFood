@@ -1,6 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCart } from "@/lib/cart";
+import { trackViewItem } from "@/lib/analytics";
 
 export type NormOption = { id?: string; name: string; price?: string | null };
 export type NormGroup  = { id?: string; name: string; required?: boolean; min?: number; max?: number; options: NormOption[] };
@@ -24,9 +25,24 @@ export default function OptionsClient({
   basePrice: string;           // ex: "8.90 €"
   groups: NormGroup[];
 }) {
-  const { add } = useCart();
+  const { add, currency: cartCurrency } = useCart();
   const base = useMemo(() => parseLabelToValue(basePrice), [basePrice]);
   const [sel, setSel] = useState<Record<number, Set<number>>>({});
+
+  useEffect(() => {
+    const unitAmount = Math.max(0, Math.round(base * 100));
+    trackViewItem(
+      {
+        itemId: slug,
+        name,
+        variantId: 'std',
+        variantName: 'Standard',
+        unitAmount,
+        quantity: 1,
+      },
+      cartCurrency || 'eur'
+    );
+  }, [slug, name, base, cartCurrency]);
 
   const toggle = (gi: number, oi: number, single: boolean, max?: number) => {
     setSel(prev => {

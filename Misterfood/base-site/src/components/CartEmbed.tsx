@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useCart } from "@/lib/cart";
 
 type Line = {
@@ -70,9 +70,29 @@ export default function CartEmbed({
   const setTipPercent = (p?: number) => {
     if (typeof cart?.setTipPercent === "function") cart.setTipPercent(p ?? 0);
   };
-  const checkout = () => {
-    if (typeof cart?.checkout === "function")
-      cart.checkout({ currency });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const checkout = async () => {
+    if (isSubmitting) return;
+    if (typeof cart?.checkout !== "function" || !lines?.length) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const { clientSecret, orderId, amount, currency: checkoutCurrency } = await cart.checkout();
+      const params = new URLSearchParams({
+        client_secret: clientSecret,
+        order_id: orderId,
+        amount: String(amount),
+        currency: (checkoutCurrency || currency || "eur").toLowerCase(),
+      });
+      window.location.href = `/checkout/pay?${params.toString()}`;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Impossible de démarrer le paiement";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -254,10 +274,16 @@ export default function CartEmbed({
         className="btn btn-primary"
         style={{ width: "100%", marginTop: 12 }}
         onClick={checkout}
-        disabled={!lines?.length}
+        disabled={!lines?.length || isSubmitting}
+        aria-busy={isSubmitting}
       >
-        {lines?.length ? "Payer" : "Panier vide"}
+        {isSubmitting ? "Paiement en cours..." : lines?.length ? "Payer" : "Panier vide"}
       </button>
+      {error && (
+        <p role="alert" style={{ color: "#b00020", marginTop: 8 }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }

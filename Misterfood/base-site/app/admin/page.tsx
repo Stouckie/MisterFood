@@ -16,12 +16,23 @@ export default function Admin() {
   }
 
   async function testCheckout() {
-    const { url } = await postJSON<{url:string}>('/api/checkout/create', {
+    const { clientSecret, orderId, amount, currency } = await postJSON<{
+      clientSecret: string;
+      orderId: string;
+      amount: number;
+      currency: string;
+    }>('/api/checkout/create', {
       merchantId,
       items: [{ name: 'Menu Tacos', unitAmount: 1299, quantity: 1 }],
       currency: 'eur',
     });
-    location.href = url;
+    const params = new URLSearchParams({
+      client_secret: clientSecret,
+      order_id: orderId,
+      amount: String(amount),
+      currency: currency.toLowerCase(),
+    });
+    location.href = `/checkout/pay?${params.toString()}`;
   }
 
   return (
