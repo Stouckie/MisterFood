@@ -1,0 +1,150 @@
+/* ===== Reset minimal et thème ===== */
+:root{
+  --bg:#0b0f14;
+  --panel:#0f1620;
+  --panel-2:#121a24;
+  --border:#1f2a37;
+  --muted:#94a3b8;
+  --text:#e6edf3;
+  --accent:#0ea5e9;
+  --accent-2:#38bdf8;
+  --success:#22c55e;
+  --radius:16px;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+  text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
+
+/* ===== Layout ===== */
+.container{width:min(1120px, 92vw); margin:0 auto}
+.page-title{font-size:clamp(1.6rem, 1.4rem + 1.2vw, 2.2rem); font-weight:800; margin:20px 0 12px}
+.section-title{font-size:1.1rem; font-weight:800; margin:20px 0 10px}
+
+.chipbar{display:flex; gap:8px; overflow:auto; padding:8px 0 2px; margin-bottom:12px}
+.chip{
+  display:inline-flex; align-items:center; gap:8px;
+  border:1px solid var(--border); background:var(--panel);
+  color:var(--text); border-radius:999px; padding:8px 12px; text-decoration:none; white-space:nowrap;
+}
+.chip:hover{border-color:#2b3442; background:var(--panel-2)}
+
+/* ===== Grid cartes ===== */
+.reset-list{list-style:none; padding:0; margin:0}
+.grid-cards{
+  display:grid; gap:14px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.card{
+  background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+  overflow:hidden; transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.card:hover{transform:translateY(-2px); border-color:#2b3442; box-shadow:0 10px 26px rgba(0,0,0,.35)}
+.card-link{display:block; color:inherit; text-decoration:none}
+.card-img{width:100%; aspect-ratio:4/3; object-fit:cover; background:#0a0f15}
+.card-body{padding:12px 14px}
+.card-row{display:flex; align-items:flex-start; justify-content:space-between; gap:8px}
+.card-title{margin:0 0 6px; font-weight:800; line-height:1.2; font-size:1rem}
+.card-desc{margin:6px 0 0; color:var(--muted); font-size:.92rem}
+.price-pill{
+  background:linear-gradient(180deg, var(--accent), var(--accent-2));
+  color:#fff; font-weight:800; border-radius:999px; padding:.25rem .6rem; font-size:.9rem; flex:0 0 auto
+}
+
+/* ===== Boutons ===== */
+.btn{border:1px solid var(--border); background:var(--panel-2); color:var(--text); padding:.6rem .9rem; border-radius:999px; cursor:pointer}
+.btn:hover{border-color:#2b3442; background:#142030}
+.btn-primary{background:linear-gradient(180deg, var(--accent), var(--accent-2)); border:0; color:#fff}
+.btn-primary:hover{filter:brightness(1.08)}
+
+/* ===== Blocs / options ===== */
+.block{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:14px}
+.option-group{border:1px solid var(--border); border-radius:14px; padding:12px 14px; background:var(--panel)}
+.option-item{
+  width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:var(--panel-2);
+}
+.option-item[aria-pressed="true"]{background:rgba(14,165,233,.12); border-color:#1f8fc1}
+.option-dot{width:18px; height:18px; border-radius:999px; border:2px solid #415063; background:transparent}
+.option-item[aria-pressed="true"] .option-dot{background:var(--accent)}
+
+/* liens */
+a{color:inherit}
+a:hover{text-decoration:underline}
+/* ===== Grille principale avec panier à droite ===== */
+.content-grid{
+  display:grid;
+  grid-template-columns: minmax(0,1fr) 380px; /* contenu | panier */
+  gap: 20px;
+  align-items: start;
+}
+
+/* le panier reste visible en scroll */
+.cart-col{
+  position: sticky;
+  top: 72px;           /* ~ hauteur du header */
+  height: fit-content; /* adapte à son contenu */
+}
+
+/* sur petits écrans, on repasse en 1 colonne */
+@media (max-width: 1100px){
+  .content-grid{ grid-template-columns: 1fr; }
+  .cart-col{ position: static; margin-top: 16px; }
+}
+/* ===== Grille principale avec panier à droite ===== */
+.content-grid{
+  display:grid;
+  grid-template-columns: minmax(0,1fr) 380px; /* contenu | panier */
+  gap: 20px;
+  align-items: start;
+}
+
+/* panier sticky sur desktop */
+.cart-col{
+  position: sticky;
+  top: 72px;                 /* ~ hauteur du header */
+  height: fit-content;
+}
+
+/* ===== Intégration "embed" de la CartSidebar (pas en popover) ===== */
+/* La plupart des versions de CartSidebar montent un unique root <div>.
+   On neutralise sa position flottante pour l'intégrer dans la colonne. */
+.cart-embed > *{
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: none !important;
+  border-radius: var(--radius) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--panel) !important;
+  box-shadow: none !important;
+}
+
+/* si la sidebar crée un overlay/close pour le mode popover, on le masque */
+.cart-embed .overlay,
+.cart-embed [data-overlay],
+.cart-embed [data-close],
+.cart-embed [aria-label="Close"],
+.cart-embed .cart-overlay{
+  display: none !important;
+}
+
+/* uniformise l'intérieur (selon markup courant) */
+.cart-embed h2, .cart-embed h3{
+  margin: 0 0 8px;
+}
+.cart-embed input, .cart-embed textarea, .cart-embed button{
+  font: inherit;
+}
+
+/* Responsive : en 1 colonne sur petits écrans */
+@media (max-width: 1100px){
+  .content-grid{ grid-template-columns: 1fr; }
+  .cart-col{ position: static; margin-top: 16px; }
+}

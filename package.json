@@ -1,0 +1,40 @@
+{
+    "name": "snack-base",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+        "dev": "next dev -p 3000",
+        "build": "next build",
+        "start": "next start -p 3000",
+        "typecheck": "tsc --noEmit",
+        "lint": "next lint",
+        "e2e": "playwright test",
+        "postinstall": "prisma generate",
+        "prisma:migrate": "prisma migrate dev",
+        "prisma:generate": "prisma generate"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": "",
+    "dependencies": {
+        "@prisma/client": "^6.18.0",
+        "next": "^14.2.33",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "resend": "^6.2.2",
+        "stripe": "^19.1.0",
+        "twilio": "^5.10.3"
+    },
+    "devDependencies": {
+        "@tailwindcss/forms": "^0.5.10",
+        "@tailwindcss/line-clamp": "^0.4.4",
+        "@tailwindcss/typography": "^0.5.19",
+        "@types/node": "^24.9.1",
+        "autoprefixer": "^10.4.21",
+        "postcss": "^8.5.6",
+        "prisma": "^6.18.0",
+        "tailwindcss": "^4.1.16",
+        "typescript": "^5.9.3"
+    }
+}

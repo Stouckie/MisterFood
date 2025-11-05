@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // change to "postgresql" if you use Postgres and update DATABASE_URL
+  url      = env("DATABASE_URL")
+}
+
+// --- Merchant & Orders ---
+
+model Merchant {
+  id              String  @id @default(cuid())
+  name            String
+  slug            String  @unique
+  stripeAccountId String?
+  commissionBps   Int     @default(500) // 5.00%
+
+  // Notifications
+  notifyEmail           String?
+  notifyPhone           String? // E.164, ex: +33612345678
+  notifyEmailEnabled    Boolean @default(true)
+  notifySmsEnabled      Boolean @default(false)
+  notifyWhatsAppEnabled Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  orders         Order[]
+  menuCategories MenuCategory[]
+  openingHours   OpeningHours[]
+  specialDays    SpecialDay[]
+}
+
+model Order {
+  id         String   @id @default(cuid())
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  currency    String      @default("eur")
+  amountTotal Int         @default(0) // cents
+  status      OrderStatus @default(PENDING)
+
+  stripeCheckoutSessionId String?
+  stripePaymentIntentId   String?
+  stripeClientSecret      String?
+  idempotencyKey          String? @unique
+
+  // notification dedupe
+  notifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    OrderItem[]
+  delivery Delivery?
+
+  @@index([merchantId, createdAt])
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  name       String
+  unitAmount Int // cents
+  quantity   Int
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELED
+  FAILED
+}
+
+// --- Menu (categories, items, variants, modifiers) ---
+
+model MenuCategory {
+  id         String   @id @default(cuid())
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  name     String
+  position Int     @default(0)
+  isHidden Boolean @default(false)
+
+  items MenuItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([merchantId, position])
+}
+
+model MenuItem {
+  id         String       @id @default(cuid())
+  categoryId String
+  category   MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  name         String
+  description  String?
+  imageUrl     String?
+  position     Int       @default(0)
+  isHidden     Boolean   @default(false)
+  soldOutUntil DateTime?
+
+  variants  PriceVariant[]
+  modifiers ModifierGroup[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId, position])
+}
+
+model PriceVariant {
+  id     String   @id @default(cuid())
+  itemId String
+  item   MenuItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  name       String // "Standard" / "L" / "XL"
+  priceMinor Int // cents
+  isDefault  Boolean @default(false)
+  position   Int     @default(0)
+
+  @@index([itemId, position])
+}
+
+model ModifierGroup {
+  id     String   @id @default(cuid())
+  itemId String
+  item   MenuItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  name     String
+  min      Int     @default(0)
+  max      Int     @default(1) // 1 = radio ; >1 = multi
+  required Boolean @default(false)
+  position Int     @default(0)
+
+  options ModifierOption[]
+
+  @@index([itemId, position])
+}
+
+model ModifierOption {
+  id      String        @id @default(cuid())
+  groupId String
+  group   ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  name       String
+  priceDelta Int     @default(0) // extra cents
+  isDefault  Boolean @default(false)
+  position   Int     @default(0)
+
+  @@index([groupId, position])
+}
+
+// --- Opening hours ---
+
+model OpeningHours {
+  id         String   @id @default(cuid())
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  weekday  Int // 0=Sun … 6=Sat
+  openMin  Int // minutes from 00:00
+  closeMin Int
+  isClosed Boolean @default(false)
+
+  @@unique([merchantId, weekday])
+}
+
+model SpecialDay {
+  id         String   @id @default(cuid())
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  date     DateTime // 00:00 local
+  openMin  Int?
+  closeMin Int?
+  isClosed Boolean  @default(true)
+
+  @@index([merchantId, date])
+}
+
+// --- Delivery (Uber Direct) ---
+
+model Delivery {
+  id      String @id @default(cuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  provider    String  @default("uber_direct")
+  estimateId  String?
+  deliveryId  String?
+  status      String?
+  trackingUrl String?
+  feeTotal    Int?
+  currency    String?
+  pickupAtMs  BigInt?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WebhookEvent {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
+}
